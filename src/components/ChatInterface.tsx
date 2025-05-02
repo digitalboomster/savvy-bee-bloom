@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Heart, Activity, Upload, Plus, Search, X, MessageSquare } from 'lucide-react';
@@ -6,7 +7,7 @@ import ChatInput from './ChatInput';
 import QuickPrompts from './QuickPrompts';
 import BeeCounselor from './BeeCounselor';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const initialMessages = [
@@ -188,8 +189,8 @@ const ChatInterface = () => {
         <QuickPrompts onSelectPrompt={handlePromptSelect} />
         
         <div className="flex items-center gap-2 p-4 bg-white relative">
-          <Sheet open={isToolsOpen} onOpenChange={setIsToolsOpen}>
-            <SheetTrigger asChild>
+          <Popover open={isToolsOpen} onOpenChange={setIsToolsOpen}>
+            <PopoverTrigger asChild>
               <Button 
                 variant="outline" 
                 size="icon" 
@@ -197,36 +198,40 @@ const ChatInterface = () => {
               >
                 {isToolsOpen ? <X size={18} /> : <Plus size={18} />}
               </Button>
-            </SheetTrigger>
-            <SheetContent side="bottom" className="h-auto rounded-t-xl px-2 py-6">
-              <div className="grid grid-cols-3 gap-4">
+            </PopoverTrigger>
+            <PopoverContent 
+              className="p-2 bg-white shadow-lg rounded-lg border-amber-100" 
+              align="start" 
+              sideOffset={10}
+            >
+              <div className="grid grid-cols-1 gap-2">
                 <Button 
                   onClick={() => handleToolSelect('heal')} 
                   variant="outline" 
-                  className="flex flex-col items-center justify-center p-6 hover:bg-amber-50 border-amber-200"
+                  className="flex items-center justify-start p-3 hover:bg-amber-50 border-amber-200 text-left"
                 >
-                  <Heart className="h-8 w-8 text-amber-500 mb-2" />
+                  <Heart className="h-5 w-5 text-amber-500 mr-2" />
                   <span>Heal Me</span>
                 </Button>
                 <Button 
                   onClick={() => handleToolSelect('analyse')} 
                   variant="outline" 
-                  className="flex flex-col items-center justify-center p-6 hover:bg-amber-50 border-amber-200"
+                  className="flex items-center justify-start p-3 hover:bg-amber-50 border-amber-200 text-left"
                 >
-                  <Activity className="h-8 w-8 text-blue-500 mb-2" />
+                  <Activity className="h-5 w-5 text-blue-500 mr-2" />
                   <span>Analyse Me</span>
                 </Button>
                 <Button 
                   onClick={() => handleToolSelect('upload')} 
                   variant="outline" 
-                  className="flex flex-col items-center justify-center p-6 hover:bg-amber-50 border-amber-200"
+                  className="flex items-center justify-start p-3 hover:bg-amber-50 border-amber-200 text-left"
                 >
-                  <Upload className="h-8 w-8 text-green-500 mb-2" />
+                  <Upload className="h-5 w-5 text-green-500 mr-2" />
                   <span>Upload</span>
                 </Button>
               </div>
-            </SheetContent>
-          </Sheet>
+            </PopoverContent>
+          </Popover>
           
           <ChatInput onSendMessage={handleSendMessage} />
         </div>
