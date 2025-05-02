@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { X, Heart } from 'lucide-react';
+import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface BeeCounselorProps {
@@ -98,37 +98,37 @@ const BeeCounselor = ({ onClose }: BeeCounselorProps) => {
         <p className="text-sm mb-4">{exercises[currentStep].content}</p>
         
         {exercises[currentStep].isChoice && (
-          <div className="grid grid-cols-2 gap-2 mb-4">
+          <div className="grid grid-cols-2 gap-4 mb-4">
             <Button 
               variant="outline" 
               onClick={() => selectMood('good')}
-              className="flex flex-col items-center p-3 hover:bg-green-50 border-green-200"
+              className="flex flex-col items-center justify-center p-3 h-20 hover:bg-green-50 border-green-200"
             >
-              <span className="text-xl mb-1">😊</span>
+              <span className="text-2xl mb-2">😊</span>
               <span className="text-xs">Good</span>
             </Button>
             <Button 
               variant="outline" 
               onClick={() => selectMood('okay')}
-              className="flex flex-col items-center p-3 hover:bg-blue-50 border-blue-200"
+              className="flex flex-col items-center justify-center p-3 h-20 hover:bg-blue-50 border-blue-200"
             >
-              <span className="text-xl mb-1">😐</span>
+              <span className="text-2xl mb-2">😐</span>
               <span className="text-xs">Okay</span>
             </Button>
             <Button 
               variant="outline" 
               onClick={() => selectMood('stressed')}
-              className="flex flex-col items-center p-3 hover:bg-amber-50 border-amber-200"
+              className="flex flex-col items-center justify-center p-3 h-20 hover:bg-amber-50 border-amber-200"
             >
-              <span className="text-xl mb-1">😓</span>
+              <span className="text-2xl mb-2">😓</span>
               <span className="text-xs">Stressed</span>
             </Button>
             <Button 
               variant="outline" 
               onClick={() => selectMood('anxious')}
-              className="flex flex-col items-center p-3 hover:bg-red-50 border-red-200"
+              className="flex flex-col items-center justify-center p-3 h-20 hover:bg-red-50 border-red-200"
             >
-              <span className="text-xl mb-1">😰</span>
+              <span className="text-2xl mb-2">😰</span>
               <span className="text-xs">Anxious</span>
             </Button>
           </div>
