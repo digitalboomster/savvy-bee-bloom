@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Heart, Activity, Upload, Plus, Search, X, MessageSquare } from 'lucide-react';
@@ -14,7 +13,7 @@ const initialMessages = [
   { 
     text: "Hi there! I'm Savvy Bee 🐝, your financial wellness buddy. How can I help you today?", 
     isBot: true, 
-    type: 'default',
+    type: 'default' as const,
     timestamp: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
   }
 ];
