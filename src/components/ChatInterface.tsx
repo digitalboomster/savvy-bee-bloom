@@ -1,7 +1,6 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Heart, Activity, Upload, Plus, X, MessageSquare, Sparkles } from 'lucide-react';
+import { Heart, Activity, Upload, Plus, X, Sparkles } from 'lucide-react';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import QuickPrompts from './QuickPrompts';
@@ -11,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
+import { sendChatMessage } from '@/api/chatService';
 
 const initialMessages = [
   { 
@@ -37,6 +37,7 @@ const ChatInterface = () => {
   const [isProcessingUpload, setIsProcessingUpload] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [typingIndicator, setTypingIndicator] = useState(false);
+  const [isConnected, setIsConnected] = useState(true);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -46,7 +47,7 @@ const ChatInterface = () => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = (message: string) => {
+  const handleSendMessage = async (message: string) => {
     // Add user message
     const timestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     setMessages(prev => [...prev, { text: message, isBot: false, type: 'default', timestamp }]);
@@ -54,68 +55,73 @@ const ChatInterface = () => {
     // Show typing indicator
     setTypingIndicator(true);
     
-    // Simulate bot response after a short delay
-    setTimeout(() => {
+    try {
+      // Send message to backend API
+      const response = await sendChatMessage(message);
+      
+      // Hide typing indicator
       setTypingIndicator(false);
       
-      // Sample responses based on common financial queries
-      if (message.toLowerCase().includes('budget') || message.toLowerCase().includes('spend')) {
+      if (response.error) {
+        setIsConnected(false);
         const botTimestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
         setMessages(prev => [
           ...prev, 
           { 
-            text: "I noticed you're thinking about your spending. Would you like me to analyze your financial patterns?", 
-            isBot: true, 
-            type: 'analyse',
-            timestamp: botTimestamp 
-          }
-        ]);
-        
-        // Show financial insights after a delay
-        setTimeout(() => {
-          setShowFinancialInsights(true);
-        }, 800);
-        
-        setTimeout(() => {
-          const botTimestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-          setMessages(prev => [
-            ...prev, 
-            { 
-              text: "Money concerns can sometimes feel overwhelming. Would you like to try a quick mindfulness exercise to help reduce financial stress?", 
-              isBot: true, 
-              type: 'heal',
-              timestamp: botTimestamp 
-            }
-          ]);
-        }, 1500);
-      } else if (message.toLowerCase().includes('stress') || message.toLowerCase().includes('worry') || message.toLowerCase().includes('anxious')) {
-        const botTimestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        setMessages(prev => [
-          ...prev, 
-          { 
-            text: "I notice you're feeling stressed. That's completely understandable! Financial concerns affect our wellbeing. Let's take a moment to check in with how you're feeling.", 
-            isBot: true, 
-            type: 'heal',
-            timestamp: botTimestamp 
-          }
-        ]);
-        
-        setTimeout(() => {
-          setShowBeeCounselor(true);
-        }, 800);
-      } else {
-        const botTimestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        setMessages(prev => [
-          ...prev, 
-          { 
-            text: "I'd love to help you with that! To give you more personalized guidance, I can analyze your spending patterns or offer relaxation techniques if you're feeling stressed about finances. What would you prefer?", 
+            text: response.reply, 
             isBot: true, 
             type: 'default',
             timestamp: botTimestamp 
           }
         ]);
+      } else {
+        setIsConnected(true);
+        const botTimestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        
+        // Determine message type based on content
+        let messageType: 'default' | 'analyse' | 'heal' = 'default';
+        if (response.reply.toLowerCase().includes('stress') || 
+            response.reply.toLowerCase().includes('feel') || 
+            response.reply.toLowerCase().includes('health')) {
+          messageType = 'heal';
+        } else if (response.reply.toLowerCase().includes('budget') || 
+                  response.reply.toLowerCase().includes('spend') || 
+                  response.reply.toLowerCase().includes('save')) {
+          messageType = 'analyse';
+        }
+        
+        setMessages(prev => [
+          ...prev, 
+          { 
+            text: response.reply, 
+            isBot: true, 
+            type: messageType,
+            timestamp: botTimestamp 
+          }
+        ]);
+        
+        // Show related tools based on message type
+        if (messageType === 'heal' && Math.random() > 0.5) {
+          setTimeout(() => setShowBeeCounselor(true), 800);
+        } else if (messageType === 'analyse' && Math.random() > 0.5) {
+          setTimeout(() => setShowFinancialInsights(true), 800);
+        }
       }
-    }, 1500);
+    } catch (error) {
+      setTypingIndicator(false);
+      console.error("Error sending message:", error);
+      const botTimestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      setMessages(prev => [
+        ...prev, 
+        { 
+          text: "I'm having trouble connecting right now. Please try again in a moment.", 
+          isBot: true, 
+          type: 'default',
+          timestamp: botTimestamp 
+        }
+      ]);
+      setIsConnected(false);
+    }
   };
 
   const handleToolSelect = (toolType: string) => {
@@ -212,7 +218,7 @@ const ChatInterface = () => {
   return (
     <div className="flex flex-col h-full bg-gray-50 rounded-lg overflow-hidden border shadow-md">
       <motion.div 
-        className="bg-amber-500 text-white p-4 flex items-center justify-between"
+        className={`${isConnected ? 'bg-amber-500' : 'bg-gray-400'} text-white p-4 flex items-center justify-between`}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
@@ -232,6 +238,11 @@ const ChatInterface = () => {
             <span className="text-amber-500 font-bold text-sm">🐝</span>
           </motion.div>
           <h2 className="text-lg font-medium">Savvy Bee</h2>
+          {!isConnected && (
+            <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded-full ml-2">
+              Offline
+            </span>
+          )}
         </div>
         <div className="text-xs opacity-80">
           {new Date().toLocaleDateString()}
@@ -392,6 +403,11 @@ const ChatInterface = () => {
       
       <div className="px-4 py-2 bg-gray-100 text-xs text-center text-gray-500">
         This chatbot is for guidance only; seek professional help when needed.
+        {!isConnected && (
+          <div className="text-red-500 mt-1">
+            Backend connection issue. Some features may be limited.
+          </div>
+        )}
       </div>
     </div>
   );
