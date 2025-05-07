@@ -1,7 +1,6 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Heart, Activity, Upload, Plus, X, Sparkles, Camera, FileText, ArrowLeft, Scan } from 'lucide-react';
+import { Heart, Activity, Upload, Plus, X, Sparkles, Camera, FileText, ArrowLeft, Scan, Download } from 'lucide-react';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import QuickPrompts from './QuickPrompts';
@@ -11,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { sendChatMessage } from '@/api/chatService';
+import { sendChatMessage, analyzeReceipt, storeReceiptData, getFinancialSummary, ReceiptAnalysisResult, FinancialSummary } from '@/api/chatService';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CameraCapturePanel from './CameraCapturePanel';
 
@@ -44,6 +43,12 @@ const ChatInterface = () => {
   const [typingIndicator, setTypingIndicator] = useState(false);
   const [isConnected, setIsConnected] = useState(true);
   const [activePanel, setActivePanel] = useState<PanelType>('chat');
+  
+  // New state variables for enhanced features
+  const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null);
+  const [receiptData, setReceiptData] = useState<ReceiptAnalysisResult | null>(null);
+  const [isAnalyzingReceipt, setIsAnalyzingReceipt] = useState(false);
+  const [offlineMode, setOfflineMode] = useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -52,6 +57,38 @@ const ChatInterface = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+  
+  // Check connection status on mount
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        // Try to fetch the API health check
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/`, { 
+          method: 'HEAD',
+          cache: 'no-cache'
+        });
+        setIsConnected(response.ok);
+        setOfflineMode(!response.ok);
+      } catch (error) {
+        console.log("Connection check failed:", error);
+        setIsConnected(false);
+        setOfflineMode(true);
+        
+        toast({
+          title: "Offline Mode Activated",
+          description: "You're currently using Savvy Bee offline. Some features may be limited.",
+          variant: "warning"
+        });
+      }
+    };
+    
+    checkConnection();
+    
+    // Periodically check connection
+    const intervalId = setInterval(checkConnection, 60000); // Check every minute
+    
+    return () => clearInterval(intervalId);
+  }, []);
 
   const handleSendMessage = async (message: string) => {
     // Add user message
@@ -62,6 +99,24 @@ const ChatInterface = () => {
     setTypingIndicator(true);
     
     try {
+      if (offlineMode) {
+        // Simulate response in offline mode
+        setTimeout(() => {
+          setTypingIndicator(false);
+          const botTimestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+          setMessages(prev => [
+            ...prev, 
+            { 
+              text: "I'm in offline mode right now, but I'll store your message for later. You can still view your past financial data and receipts.", 
+              isBot: true, 
+              type: 'default',
+              timestamp: botTimestamp 
+            }
+          ]);
+        }, 1500);
+        return;
+      }
+      
       // Send message to backend API
       const response = await sendChatMessage(message);
       
@@ -70,11 +125,12 @@ const ChatInterface = () => {
       
       if (response.error) {
         setIsConnected(false);
+        setOfflineMode(true);
         const botTimestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
         setMessages(prev => [
           ...prev, 
           { 
-            text: response.reply, 
+            text: "I've switched to offline mode. You can still analyze your previous receipts and view your financial insights, but new analyses will be limited.", 
             isBot: true, 
             type: 'default',
             timestamp: botTimestamp 
@@ -110,7 +166,14 @@ const ChatInterface = () => {
         if (messageType === 'heal' && Math.random() > 0.5) {
           setTimeout(() => setShowBeeCounselor(true), 800);
         } else if (messageType === 'analyse' && Math.random() > 0.5) {
-          setTimeout(() => setShowFinancialInsights(true), 800);
+          // Load financial insights if analyzing finances
+          try {
+            const summaryData = await getFinancialSummary();
+            setFinancialSummary(summaryData);
+            setTimeout(() => setShowFinancialInsights(true), 800);
+          } catch (error) {
+            console.error("Failed to load financial summary:", error);
+          }
         }
       }
     } catch (error) {
@@ -120,13 +183,14 @@ const ChatInterface = () => {
       setMessages(prev => [
         ...prev, 
         { 
-          text: "I'm having trouble connecting right now. Please try again in a moment.", 
+          text: "I'm having trouble connecting right now. Switching to offline mode where you can still view your stored data.", 
           isBot: true, 
           type: 'default',
           timestamp: botTimestamp 
         }
       ]);
       setIsConnected(false);
+      setOfflineMode(true);
     }
   };
 
@@ -146,16 +210,40 @@ const ChatInterface = () => {
         }
       ]);
     } else if (toolType === 'analyse') {
-      setShowFinancialInsights(true);
-      setMessages(prev => [
-        ...prev,
-        {
-          text: "I'd be happy to analyze your financial patterns. Here are some insights based on your recent activities:",
-          isBot: true,
-          type: 'analyse',
-          timestamp
-        }
-      ]);
+      // Load financial insights
+      if (offlineMode) {
+        // Use cached data in offline mode
+        setShowFinancialInsights(true);
+        setMessages(prev => [
+          ...prev,
+          {
+            text: "Here are your previously stored financial insights. Note that this data may not be current since you're in offline mode.",
+            isBot: true,
+            type: 'analyse',
+            timestamp
+          }
+        ]);
+      } else {
+        setShowFinancialInsights(true);
+        setMessages(prev => [
+          ...prev,
+          {
+            text: "I'd be happy to analyze your financial patterns. Here are some insights based on your recent activities:",
+            isBot: true,
+            type: 'analyse',
+            timestamp
+          }
+        ]);
+        
+        // Get latest financial summary
+        getFinancialSummary()
+          .then(summary => {
+            setFinancialSummary(summary);
+          })
+          .catch(error => {
+            console.error("Failed to get financial summary:", error);
+          });
+      }
     } else if (toolType === 'upload') {
       setUploadDialogOpen(true);
     } else if (toolType === 'camera') {
@@ -176,10 +264,60 @@ const ChatInterface = () => {
           timestamp
         }
       ]);
+    } else if (toolType === 'download') {
+      // Download chat history
+      downloadChatHistory();
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const downloadChatHistory = () => {
+    try {
+      // Format messages for download
+      const historyData = {
+        title: "Savvy Bee Chat History",
+        exportDate: new Date().toLocaleString(),
+        messages: messages.map(msg => ({
+          sender: msg.isBot ? "Savvy Bee" : "You",
+          message: msg.text,
+          timestamp: msg.timestamp,
+          type: msg.type
+        }))
+      };
+      
+      // Convert to JSON string
+      const jsonString = JSON.stringify(historyData, null, 2);
+      
+      // Create blob and download
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `savvybee-chat-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Clean up
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
+      
+      toast({
+        title: "Download Complete",
+        description: "Your chat history has been saved to your device.",
+      });
+    } catch (error) {
+      console.error("Error downloading chat history:", error);
+      toast({
+        title: "Download Failed",
+        description: "Unable to download chat history. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     e.preventDefault();
     // Handle file upload logic here
     const files = e.target.files;
@@ -187,37 +325,87 @@ const ChatInterface = () => {
       setIsProcessingUpload(true);
       const timestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
       
-      // Simulate processing
-      setTimeout(() => {
-        setIsProcessingUpload(false);
-        setUploadDialogOpen(false);
-        
-        setMessages(prev => [
-          ...prev,
-          {
-            text: `I've received your file: ${files[0].name}. Let me analyze this for you...`,
-            isBot: true,
-            type: 'analyse',
-            timestamp
-          }
-        ]);
-        
-        // Simulate analysis completion
-        setTimeout(() => {
-          const analysisTimestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-          setMessages(prev => [
-            ...prev,
-            {
-              text: "I've analyzed your statement and found several interesting patterns. Would you like to see a detailed breakdown?",
-              isBot: true,
-              type: 'analyse',
-              timestamp: analysisTimestamp
+      const file = files[0];
+      const reader = new FileReader();
+      
+      reader.onload = async (event) => {
+        if (event.target && typeof event.target.result === 'string') {
+          try {
+            setMessages(prev => [
+              ...prev,
+              {
+                text: `I've received your file: ${file.name}. Processing...`,
+                isBot: true,
+                type: 'analyse',
+                timestamp
+              }
+            ]);
+            
+            if (offlineMode) {
+              // Simulate processing in offline mode
+              setTimeout(() => {
+                setIsProcessingUpload(false);
+                setUploadDialogOpen(false);
+                
+                const analysisTimestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                setMessages(prev => [
+                  ...prev,
+                  {
+                    text: "Since I'm in offline mode, I can't analyze new documents. Please try again when you're online.",
+                    isBot: true,
+                    type: 'default',
+                    timestamp: analysisTimestamp
+                  }
+                ]);
+              }, 2000);
+            } else {
+              // Process image and analyze receipt
+              const result = await analyzeReceipt(event.target.result);
+              
+              // Store the receipt data
+              storeReceiptData(result);
+              
+              setIsProcessingUpload(false);
+              setUploadDialogOpen(false);
+              setReceiptData(result);
+              
+              // Show analysis result
+              const analysisTimestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+              setMessages(prev => [
+                ...prev,
+                {
+                  text: `I've analyzed your receipt from ${result.merchantName || 'the store'} for ${result.totalAmount || 'an unknown amount'}. ${result.spendingInsight} ${result.savingTip}`,
+                  isBot: true,
+                  type: 'analyse',
+                  timestamp: analysisTimestamp
+                }
+              ]);
+              
+              // Update financial insights
+              const summaryData = await getFinancialSummary();
+              setFinancialSummary(summaryData);
+              setShowFinancialInsights(true);
             }
-          ]);
-          
-          setShowFinancialInsights(true);
-        }, 3000);
-      }, 2000);
+          } catch (error) {
+            console.error("Error processing file:", error);
+            setIsProcessingUpload(false);
+            setUploadDialogOpen(false);
+            
+            const errorTimestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            setMessages(prev => [
+              ...prev,
+              {
+                text: "I had trouble analyzing that document. Please make sure it's a clear image of a receipt or statement and try again.",
+                isBot: true,
+                type: 'default',
+                timestamp: errorTimestamp
+              }
+            ]);
+          }
+        }
+      };
+      
+      reader.readAsDataURL(file);
     }
   };
 
@@ -225,7 +413,7 @@ const ChatInterface = () => {
     handleSendMessage(prompt);
   };
 
-  const handleImageCapture = (imageDataUrl: string) => {
+  const handleImageCapture = async (imageDataUrl: string) => {
     toast({
       title: "Receipt Captured",
       description: "Processing your financial document...",
@@ -244,23 +432,71 @@ const ChatInterface = () => {
     ]);
     
     // Switch back to chat after capture
-    setTimeout(() => {
-      setActivePanel('chat');
-      
-      // Simulate analysis completion
-      setTimeout(() => {
+    setActivePanel('chat');
+    setIsAnalyzingReceipt(true);
+    
+    try {
+      if (offlineMode) {
+        // Simulate analysis in offline mode
+        setTimeout(() => {
+          setIsAnalyzingReceipt(false);
+          const offlineTimestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+          setMessages(prev => [
+            ...prev,
+            {
+              text: "Since I'm in offline mode, I can't analyze new receipts. Your image has been saved locally and will be analyzed when you're back online.",
+              isBot: true,
+              type: 'default',
+              timestamp: offlineTimestamp
+            }
+          ]);
+        }, 2000);
+      } else {
+        // Analyze the receipt
+        const result = await analyzeReceipt(imageDataUrl);
+        
+        // Store the receipt data for offline access
+        storeReceiptData(result);
+        
+        setIsAnalyzingReceipt(false);
+        setReceiptData(result);
+        
+        // Show analysis result
         const analysisTimestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
         setMessages(prev => [
           ...prev,
           {
-            text: "I've analyzed your receipt and found that you spent $42.50 at Coffee Shop yesterday. This puts you $15 over your monthly coffee budget. Would you like some tips to cut back?",
+            text: `I've analyzed your receipt from ${result.merchantName || 'the store'} for ${result.totalAmount || 'an unknown amount'}. ${result.spendingInsight} ${result.savingTip}`,
             isBot: true,
             type: 'analyse',
             timestamp: analysisTimestamp
           }
         ]);
-      }, 3000);
-    }, 1000);
+        
+        // Update and show financial insights after receipt analysis
+        try {
+          const summaryData = await getFinancialSummary();
+          setFinancialSummary(summaryData);
+          setTimeout(() => setShowFinancialInsights(true), 1000);
+        } catch (error) {
+          console.error("Failed to update financial summary:", error);
+        }
+      }
+    } catch (error) {
+      console.error("Error analyzing receipt:", error);
+      setIsAnalyzingReceipt(false);
+      
+      const errorTimestamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      setMessages(prev => [
+        ...prev,
+        {
+          text: "I had trouble analyzing that receipt. Please make sure it's a clear image and try again.",
+          isBot: true,
+          type: 'default',
+          timestamp: errorTimestamp
+        }
+      ]);
+    }
   };
 
   return (
@@ -351,6 +587,25 @@ const ChatInterface = () => {
               </div>
             )}
             
+            {isAnalyzingReceipt && (
+              <div className="flex items-center space-x-2 mb-4">
+                <div className="w-8 h-8 rounded-full bg-amber-400 flex items-center justify-center flex-shrink-0">
+                  <span className="text-amber-900 font-bold text-xs">🐝</span>
+                </div>
+                <div className="bg-amber-50 px-4 py-2 rounded-2xl">
+                  <div className="flex items-center space-x-2">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    >
+                      <Scan className="h-4 w-4 text-amber-500" />
+                    </motion.div>
+                    <span className="text-sm">Analyzing receipt...</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             <div ref={messagesEndRef} />
             
             <AnimatePresence>
@@ -358,8 +613,11 @@ const ChatInterface = () => {
                 <BeeCounselor onClose={() => setShowBeeCounselor(false)} />
               )}
               
-              {showFinancialInsights && (
-                <FinancialInsights onClose={() => setShowFinancialInsights(false)} />
+              {showFinancialInsights && financialSummary && (
+                <FinancialInsights 
+                  onClose={() => setShowFinancialInsights(false)}
+                  data={financialSummary}
+                />
               )}
             </AnimatePresence>
           </div>
@@ -475,6 +733,14 @@ const ChatInterface = () => {
                       <Sparkles className="h-5 w-5 text-purple-500 mr-2" />
                       <span>Smart Assistant</span>
                     </Button>
+                    <Button 
+                      onClick={() => handleToolSelect('download')} 
+                      variant="outline" 
+                      className="flex items-center justify-start p-3 hover:bg-amber-50 border-amber-200 text-left"
+                    >
+                      <Download className="h-5 w-5 text-amber-500 mr-2" />
+                      <span>Download Chat</span>
+                    </Button>
                   </div>
                 </PopoverContent>
               </Popover>
@@ -530,7 +796,7 @@ const ChatInterface = () => {
         This chatbot is for guidance only; seek professional help when needed.
         {!isConnected && (
           <div className="text-red-500 mt-1">
-            Backend connection issue. Some features may be limited.
+            Backend connection issue. {offlineMode ? "Running in offline mode." : "Some features may be limited."}
           </div>
         )}
       </div>
