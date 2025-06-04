@@ -8,7 +8,7 @@ app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)  # Enable CORS for all routes
 
 # Initialize client (use your actual key)
-client = Groq(api_key=os.getenv("GROQ_API_KEY", "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"))
+client = Groq(api_key=os.getenv("GROQ_API_KEY", "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"))
 
 SYSTEM_PROMPT = """
 You're SaavyBee - a human-like financial friend, counsellor and assistant. Rules:
