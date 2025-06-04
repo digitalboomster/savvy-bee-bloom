@@ -1,6 +1,6 @@
 import { toast } from "@/hooks/use-toast";
 
-export const transcribeAudio = async (audioBlob: Blob): Promise<string> => {
+export async function transcribeAudio(audioBlob: Blob): Promise<string> {
   try {
     const formData = new FormData();
     formData.append("audio", audioBlob, "recording.webm");
@@ -25,5 +25,4 @@ export const transcribeAudio = async (audioBlob: Blob): Promise<string> => {
     });
     return "Sorry, couldn't understand your voice.";
   }
-};
-
+}
